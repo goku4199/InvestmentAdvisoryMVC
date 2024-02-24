@@ -9,6 +9,10 @@ namespace InvestmentAdvisory
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            //Start
+            //builder.services.addauthentication
+            //End
+
             // Add services to the container.
             builder.Services.AddControllersWithViews();
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
