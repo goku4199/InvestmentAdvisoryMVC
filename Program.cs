@@ -1,5 +1,10 @@
 using InvestmentAdvisory.Data;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 namespace InvestmentAdvisory
 {
@@ -8,19 +13,35 @@ namespace InvestmentAdvisory
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-
-            // Add services to the container.
-            builder.Services.AddControllersWithViews();
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-            builder.Services.AddDistributedMemoryCache(); // Stores session state in memory
-            builder.Services.AddSession(options =>
+            // Add services to the container.
+            builder.Services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                    options.DefaultChallengeScheme = GoogleDefaults.AuthenticationScheme;
+                    options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                })
+        .AddJwtBearer(options =>
+        {
+            // Your existing JWT configuration goes here
+            options.TokenValidationParameters = new TokenValidationParameters
             {
-                options.IdleTimeout = TimeSpan.FromMinutes(30); // You can set the timeout duration as per your requirement
-                options.Cookie.HttpOnly = true;
-                options.Cookie.IsEssential = true;
-            });
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(builder.Configuration["Jwt:Key"])), // Fetch the key from configuration
+                ValidateIssuer = false,
+                ValidateAudience = false
+            };
+        })
+        .AddGoogle(options =>
+        {
+            options.ClientId = builder.Configuration["GoogleKeys:ClientId"];
+            options.ClientSecret = builder.Configuration["GoogleKeys:ClientSecret"];
+        }).AddCookie();
+
+
+            builder.Services.AddControllersWithViews();
 
             var app = builder.Build();
 
@@ -36,13 +57,19 @@ namespace InvestmentAdvisory
             app.UseStaticFiles();
 
             app.UseRouting();
-            app.UseSession();
 
+
+            app.UseAuthentication(); // Add this line before app.UseAuthorization();
             app.UseAuthorization();
 
             app.MapControllerRoute(
                 name: "default",
                 pattern: "{controller=Home}/{action=Index}/{id?}");
+
+            app.UseEndpoints(endpoints =>
+            {
+                endpoints.MapControllers();
+            });
 
             app.Run();
         }
